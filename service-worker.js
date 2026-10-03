@@ -1,5 +1,5 @@
-const CACHE_NAME = "project-notes-v6";
-const APP_FILES = ["./", "./index.html", "./styles.css?v=6", "./analysis.js?v=6", "./app.js?v=6", "./manifest.webmanifest", "./icons/radar.svg"];
+const CACHE_NAME = "project-notes-v11";
+const APP_FILES = ["./", "./index.html", "./styles.css?v=11", "./analysis.js?v=11", "./app.js?v=11", "./manifest.webmanifest", "./icons/radar.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)));

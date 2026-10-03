@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/radar.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/radar.svg" />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=11" />
     <title>项目速记</title>
   </head>
   <body>
@@ -67,6 +67,7 @@
         <div class="empty-state" id="pipelineEmpty">
           <p class="empty-kicker">还没有项目</p>
           <p>从微信群主动分享一条项目消息到这里开始。</p>
+          <button class="primary-button" data-go-capture type="button">收集项目</button>
         </div>
       </section>
 
@@ -141,6 +142,10 @@
       </section>
     </main>
 
+    <button class="fab" id="captureFab" type="button" data-go-capture aria-label="收集新项目">
+      <span class="fab-plus" aria-hidden="true">+</span><span>收集项目</span>
+    </button>
+
     <dialog id="projectDialog" class="project-dialog">
       <div id="dialogContent"></div>
     </dialog>
@@ -152,14 +157,14 @@
           <button class="icon-button" value="close" aria-label="关闭设置" title="关闭">×</button>
         </div>
         <h3>接单偏好</h3>
-        <p>初始偏好参考你的示例：社媒 / 品牌视觉优先，保护正职时间，暂避 AI 产品。可随时修改，已有项目会重新评估。</p>
-        <label class="field"><span>主要接单方向</span><select id="focusPreference"><option value="social">社媒 / 品牌视觉</option><option value="packaging">包装设计</option><option value="ui">UI / 交互</option><option value="general">暂不限定方向</option></select></label>
-        <label class="check-field"><input id="daytimePreference" type="checkbox" />保护正职时间，避开全天在线和驻场</label>
-        <label class="check-field"><input id="aiPreference" type="checkbox" />暂时回避 AI 产品项目</label>
+        <p>按你的 FreeLab 审核标准评分：直播/运营活动、活动 H5、礼物、IP、swag、AI coding 与海外社媒/品牌为核心方向。可随时修改，已有项目会重新评估。</p>
+        <p>出海 / 海外业务额外增加 1 分方向匹配分，与 Figma 加分叠加后最高 5 分；未提及不扣分，一票否决仍优先。</p>
+        <label class="field"><span>主要接单方向</span><select id="focusPreference"><option value="ops">直播运营 / H5 / 礼物 / IP / swag / AI coding</option><option value="social">海外社媒 / 品牌视觉</option><option value="general">暂不限定方向</option></select></label>
+        <label class="check-field"><input id="daytimePreference" type="checkbox" />保护正职时间，全天在线 / 坐班 / 白天沟通按一票否决处理</label>
         <label class="field"><span>忙碌月份（可留空）</span><input id="busyPreference" type="month" /></label>
         <button class="primary-button" id="savePreferences" type="button">保存偏好并重新评估</button>
         <p>项目只保存在当前浏览器。定时提醒需要在部署支持 Web Push 的服务后启用。</p>
-        <p>版本 6 · 先判断，再跟进</p>
+        <p>版本 11 · 五维加权 + 出海加分</p>
         <button class="outline-button" id="checkUpdate" type="button">检查更新</button>
         <button class="outline-button" id="exportButton" type="button">导出项目数据</button>
         <button class="danger-button" id="clearButton" type="button">清空本机项目</button>
@@ -168,7 +173,7 @@
     <dialog id="copyDialog"><form method="dialog" class="copy-fallback"><p>浏览器未允许自动复制，请长按下方联系人复制。</p><textarea id="manualCopyValue" readonly aria-label="联系人，长按复制"></textarea><button class="outline-button">关闭</button></form></dialog>
 
     <div class="toast" id="toast" role="status"></div>
-    <script src="analysis.js?v=6"></script>
-    <script src="app.js?v=6"></script>
+    <script src="analysis.js?v=11"></script>
+    <script src="app.js?v=11"></script>
   </body>
 </html>
