@@ -8,7 +8,7 @@
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" href="icons/radar.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="icons/radar.svg" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=6" />
     <title>项目速记</title>
   </head>
   <body>
@@ -22,6 +22,8 @@
           <span aria-hidden="true">•••</span>
         </button>
       </header>
+      <div class="notice is-hidden" id="updateBanner">新版已就绪，已保存项目会保留。<button id="reloadButton" type="button">刷新使用</button></div>
+      <div class="notice is-hidden" id="undoBanner">项目已删除，关闭页面前可撤销最近一次删除。<button id="undoButton" type="button">撤销删除</button></div>
 
       <section class="summary" aria-label="今日概览">
         <div class="summary-heading">
@@ -59,6 +61,7 @@
           <button class="filter-chip" data-filter="all" type="button">全部</button>
           <button class="filter-chip" data-filter="saved" type="button">待判断</button>
           <button class="filter-chip" data-filter="done" type="button">已完成</button>
+          <button class="filter-chip" data-filter="paused" type="button">不跟进</button>
         </div>
         <div class="project-list" id="pipelineList"></div>
         <div class="empty-state" id="pipelineEmpty">
@@ -88,8 +91,9 @@
               <input id="capturedAt" name="capturedAt" type="date" />
             </label>
           </div>
-          <button class="secondary-button" id="parseButton" type="button">解析内容</button>
+          <button class="primary-button" id="parseButton" type="button">先帮我判断这个项目</button>
           <section class="parsed-card is-hidden" id="parsedCard" aria-live="polite">
+            <section class="assessment-card" id="assessmentCopy" aria-label="系统项目评估"></section>
             <div class="parsed-card-heading">
               <h3>识别结果</h3>
               <span>可直接修改</span>
@@ -116,29 +120,13 @@
               <span>联系人</span>
               <input id="contact" name="contact" placeholder="未提及" />
             </label>
-            <section class="assessment-card" aria-labelledby="assessmentTitle">
-              <div class="parsed-card-heading">
-                <h3 id="assessmentTitle">机会评估</h3>
-                <output id="matchScoreOutput" class="score-output"></output>
-              </div>
-              <label class="field">
-                <span>匹配度</span>
-                <select id="matchScore" name="matchScore">
-                  <option value="5">★★★★★ 优先跟进</option>
-                  <option value="4">★★★★ 值得联系</option>
-                  <option value="3">★★★ 备选观察</option>
-                  <option value="2">★★ 低优先级</option>
-                  <option value="1">★ 不建议投入</option>
-                </select>
-              </label>
-              <p class="assessment-copy" id="assessmentCopy"></p>
-              <label class="field">
-                <span>评估备注</span>
-                <textarea id="assessmentNote" name="assessmentNote" rows="3" placeholder="例如：视觉方向匹配；预算待确认；时间排期可协调"></textarea>
-              </label>
-            </section>
+            <button class="outline-button" type="button" id="copyDraftContact">一键复制联系人</button>
             <label class="field">
-              <span>你的判断</span>
+              <span>我的备注（可选）</span>
+              <textarea id="assessmentNote" name="assessmentNote" rows="2" placeholder="你的补充判断，不会替代上面的系统建议"></textarea>
+            </label>
+            <label class="field">
+              <span>跟进状态（系统已建议，可调整）</span>
               <select id="projectStatus" name="projectStatus">
                 <option value="saved">待评估</option>
                 <option value="followup">待联系 / 待投递</option>
@@ -163,13 +151,24 @@
           <div><p class="eyebrow">本机数据</p><h2>设置</h2></div>
           <button class="icon-button" value="close" aria-label="关闭设置" title="关闭">×</button>
         </div>
+        <h3>接单偏好</h3>
+        <p>初始偏好参考你的示例：社媒 / 品牌视觉优先，保护正职时间，暂避 AI 产品。可随时修改，已有项目会重新评估。</p>
+        <label class="field"><span>主要接单方向</span><select id="focusPreference"><option value="social">社媒 / 品牌视觉</option><option value="packaging">包装设计</option><option value="ui">UI / 交互</option><option value="general">暂不限定方向</option></select></label>
+        <label class="check-field"><input id="daytimePreference" type="checkbox" />保护正职时间，避开全天在线和驻场</label>
+        <label class="check-field"><input id="aiPreference" type="checkbox" />暂时回避 AI 产品项目</label>
+        <label class="field"><span>忙碌月份（可留空）</span><input id="busyPreference" type="month" /></label>
+        <button class="primary-button" id="savePreferences" type="button">保存偏好并重新评估</button>
         <p>项目只保存在当前浏览器。定时提醒需要在部署支持 Web Push 的服务后启用。</p>
+        <p>版本 6 · 先判断，再跟进</p>
+        <button class="outline-button" id="checkUpdate" type="button">检查更新</button>
         <button class="outline-button" id="exportButton" type="button">导出项目数据</button>
         <button class="danger-button" id="clearButton" type="button">清空本机项目</button>
       </form>
     </dialog>
+    <dialog id="copyDialog"><form method="dialog" class="copy-fallback"><p>浏览器未允许自动复制，请长按下方联系人复制。</p><textarea id="manualCopyValue" readonly aria-label="联系人，长按复制"></textarea><button class="outline-button">关闭</button></form></dialog>
 
     <div class="toast" id="toast" role="status"></div>
-    <script src="app.js?v=4"></script>
+    <script src="analysis.js?v=6"></script>
+    <script src="app.js?v=6"></script>
   </body>
 </html>

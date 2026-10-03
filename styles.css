@@ -77,3 +77,41 @@ dialog { width: min(calc(100% - 32px), 520px); padding: 0; border: 0; border-rad
 .toast { position: fixed; bottom: max(24px, env(safe-area-inset-bottom)); left: 50%; z-index: 5; max-width: calc(100% - 32px); padding: 10px 14px; border-radius: 5px; background: #20211e; color: #fff; font-size: 13px; opacity: 0; pointer-events: none; transform: translate(-50%, 14px); transition: opacity .2s, transform .2s; }.toast.is-visible { opacity: 1; transform: translate(-50%, 0); }
 @media (min-width: 600px) { .app-shell { padding-top: 38px; }.topbar { margin-bottom: 30px; }.view { max-width: 560px; }.capture-view { max-width: 560px; } }
 @media (max-width: 390px) { .app-shell { padding-right: 15px; padding-left: 15px; }.form-grid, .detail-grid { grid-template-columns: 1fr; gap: 0; }.detail-grid { gap: 8px; }.summary strong { font-size: 38px; } }
+
+button:disabled { opacity: .45; cursor: default; }
+.notice { margin-bottom: 14px; padding: 12px; border-radius: 6px; background: #eff2e7; font-size: 13px; line-height: 1.6; }
+.notice button { min-height: 44px; margin-left: 10px; border: 0; background: transparent; text-decoration: underline; font-weight: 700; }
+.project-card h3 { white-space: normal; overflow-wrap: anywhere; }
+.card-reason { margin: 10px 0 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.project-card .card-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; border-top: 1px solid var(--line); padding-top: 6px; }
+.project-card .card-actions button { width: auto; min-height: 44px; font-size: 13px; }
+.delete { color: #a33f2b !important; }
+dialog { max-height: 90dvh; overflow-y: auto; overscroll-behavior: contain; }
+.dialog-header h2 { overflow-wrap: anywhere; }
+.dialog-header .icon-button { flex-shrink: 0; }
+.contact-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: var(--panel); border-radius: 6px; }
+.contact-row > div { min-width: 0; }
+.contact-row span { display: block; font-size: 12px; color: var(--muted); }
+.contact-row strong { display: block; overflow-wrap: anywhere; user-select: text; }
+.contact-row button { flex-shrink: 0; }
+.detail-delete { width: 100%; margin-top: 12px; }
+.verdict { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.verdict h3 { font-size: 22px; }
+.score-stars { white-space: nowrap; font-size: 15px; }
+.assessment-basis { margin: 10px 0 16px; font-size: 12px; line-height: 1.6; color: #65714b; }
+.assessment-details { margin: 0; font-size: 14px; line-height: 1.65; }
+.assessment-details dt { font-size: 12px; font-weight: 700; color: #65714b; margin: 14px 0 4px; }
+.assessment-details dd { margin: 0; }
+.assessment-details dd p { margin-bottom: 10px; }
+.assessment-details small { display: block; color: #72746e; margin-top: 3px; overflow-wrap: anywhere; }
+.assessment-details ul { padding-left: 19px; margin: 0; }
+.assessment-details li { margin-bottom: 6px; }
+.action-grid { margin: 20px 0; }
+.action-grid [aria-pressed="true"] { background: #edf5cc; border-color: #aebd62; }
+#copyDraftContact { margin-bottom: 20px; }
+.check-field { display: flex; gap: 10px; align-items: center; font-size: 14px; line-height: 1.5; }
+.check-field input { width: 20px; height: 24px; flex-shrink: 0; }
+.copy-fallback { padding: 20px; }
+.copy-fallback button { margin-top: 12px; }
+details summary { cursor: pointer; padding: 12px 0; font-size: 14px; }
+@media (max-width: 420px) { .project-dialog > div { padding: 16px; }.assessment-card { padding: 12px; }.verdict { flex-wrap: wrap; } }

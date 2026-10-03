@@ -1,267 +1,259 @@
 const STORAGE_KEY = "project-notes.projects.v1";
+const PROFILE_KEY = "project-notes.preferences.v1";
 const $ = (selector) => document.querySelector(selector);
-const state = { projects: loadProjects(), filter: "open" };
+const A = ProjectAnalysis;
+const statusLabels = { saved: "待判断", followup: "待投递", contacted: "已联系", progress: "进行中", paused: "不跟进", done: "已完成" };
+const state = { projects: [], preferences: { ...A.defaults }, filter: "open", loaded: true, deleted: null, draft: null };
+try {
+  const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+  if (!Array.isArray(stored)) throw new Error("Invalid storage");
+  state.projects = stored.map(project => {
+    const parsed = A.parse(project.sourceText || "", project.capturedAt || A.today());
+    const result = { ...project };
+    // Fill missing facts for existing records, keeping decisions and personal notes.
+    for (const field of ["budget", "contact", "deliverables", "deadline"]) {
+      if (!result[field] || result[field] === "未提及") result[field] = parsed[field];
+    }
+    if (!result.title || /^Freelancer[- ]?Art$/i.test(result.title)) result.title = parsed.title;
+    return result;
+  });
+  state.preferences = { ...A.defaults, ...JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}") };
+} catch { state.loaded = false; }
 
-const statusLabels = { saved: "待评估", followup: "待联系", contacted: "已联系", progress: "进行中", paused: "不跟进", done: "已完成" };
-const dateFormatter = new Intl.DateTimeFormat("zh-CN", { month: "long", day: "numeric", weekday: "short" });
-
-function loadProjects() {
-  try {
-    return (JSON.parse(localStorage.getItem(STORAGE_KEY)) || []).map((project) => ({
-      matchScore: 3, assessment: "待补充评估", assessmentNote: "", ...project
-    }));
-  }
-  catch { return []; }
-}
-
-function persist() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.projects));
-  render();
-}
-
-function todayISO() { return new Date().toISOString().slice(0, 10); }
 function escapeHtml(value = "") {
-  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
+  return String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }
-function humanDate(value) {
-  if (!value) return "未提及";
-  const date = new Date(`${value}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? value : dateFormatter.format(date);
-}
-function isDue(project) { return project.deadline && project.deadline <= todayISO(); }
-function priorityScore(project) {
-  let score = project.status === "followup" ? 100 : project.status === "contacted" ? 85 : project.status === "progress" ? 75 : project.status === "saved" ? 55 : 0;
-  score += (Number(project.matchScore) || 3) * 5;
-  if (project.deadline) {
-    const days = Math.round((new Date(`${project.deadline}T12:00:00`) - new Date(`${todayISO()}T12:00:00`)) / 86400000);
-    if (days <= 0) score += 50;
-    else if (days <= 2) score += 25;
-  }
-  if (project.budget && project.budget !== "未提及") score += 8;
-  return score;
-}
-function sortProjects(projects) { return [...projects].sort((a, b) => priorityScore(b) - priorityScore(a) || b.createdAt.localeCompare(a.createdAt)); }
+const e = escapeHtml;
+const stars = score => score == null ? "暂不评分" : "★".repeat(score) + "☆".repeat(5 - score);
+const humanDate = value => value || "未提及";
+const evaluation = project => A.assess(project.sourceText, project, state.preferences);
 
-function parseMessage(text) {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  const budgetMatch = normalized.match(/(?:预算|报价|费用|酬劳|报酬|薪资|预算范围|费用范围)[：:\s]*([¥￥]?\s?\d[\d,.]*(?:\s*(?:-|到|至|~|～)\s*[¥￥]?\s?\d[\d,.]*)?\s*(?:元|w|万|k|rmb|人民币|\/[^\s，。；;]{1,5})?)/i)
-    || normalized.match(/([¥￥]\s?\d[\d,.]*(?:\s*(?:-|到|至|~|～)\s*[¥￥]?\s?\d[\d,.]*)?\s*(?:元|w|万|k)?)/i);
-  const contactMatch = normalized.match(/(?:联系(?:方式|人)?|微信|vx|v信|电话|邮箱|email)[：:\s]*([A-Za-z][A-Za-z0-9_\-]{4,19}|\d{11}|[\w.+-]+@[\w.-]+\.\w{2,})/i)
-    || normalized.match(/(?:^|[^\d])((?:1[3-9]\d{9}))(?:[^\d]|$)/);
-  const deliverableMatch = normalized.match(/((?:品牌|包装|平面|视觉|UI|网页|小程序|社媒|社交媒体|插画|海报|详情页|PPT|画册|物料|KV|banner|H5)[^，。；;！!]{0,32}(?:设计|页面|海报|视觉|UI|包装|物料|方案|图|稿|内容|运营))/i)
-    || normalized.match(/(?:需要|招|找|做|制作|交付)[：:\s]*([^，。；;！!]{3,38})/i);
-  const titleMatch = normalized.match(/(?:急招|急找|招聘|招募|寻找|找)(?:一位|个|名)?\s*([^，。；;！!]{2,28}(?:设计师|插画师|设计|视觉|UI|美术|运营))/i);
-  const deadline = parseDeadline(normalized);
-  const assessment = assessOpportunity(normalized, {
-    budget: budgetMatch?.[1]?.replace(/\s+/g, "") || "未提及",
-    contact: contactMatch?.[1] || "未提及",
-    deadline,
-    deliverables: deliverableMatch?.[1]?.trim() || "未提及"
-  });
-  return {
-    title: titleMatch?.[1] ? `${titleMatch[1]}项目` : (deliverableMatch?.[1] || normalized.slice(0, 26) || "未命名项目").replace(/[，。；;].*$/, ""),
-    budget: budgetMatch?.[1]?.replace(/\s+/g, "") || "未提及",
-    deadline,
-    deliverables: deliverableMatch?.[1]?.trim() || "未提及",
-    contact: contactMatch?.[1] || "未提及",
-    ...assessment
-  };
-}
-
-function assessOpportunity(text, project) {
-  let score = 2;
-  const reasons = [];
-  const risks = [];
-  const creativeTerms = /品牌|包装|平面|视觉|UI|网页|小程序|社媒|插画|海报|详情页|PPT|画册|物料|KV|banner|H5/i;
-  if (creativeTerms.test(text)) { score += 1; reasons.push("工作内容属于设计交付"); }
-  if (project.budget !== "未提及") { score += 1; reasons.push("预算已明确"); } else { risks.push("未写预算"); }
-  if (project.contact !== "未提及") { score += 1; reasons.push("可直接联系"); } else { risks.push("未留联系方式"); }
-  if (project.deadline) reasons.push("已识别截止时间");
-  if (/纯佣|无偿|白嫖|免费|先做后付|试稿(?:不|无)付|置换/.test(text)) { score -= 2; risks.push("合作或结算条件存在风险"); }
-  if (/驻场|全职|全天|24小时|随时响应/.test(text)) { score -= 1; risks.push("可能与自由接单节奏冲突"); }
-  if (/急|今天|今晚|明早/.test(text) && !project.deadline) { score -= 1; risks.push("时间要求紧但未给明确节点"); }
-  score = Math.max(1, Math.min(5, score));
-  const assessment = `${reasons.length ? reasons.join("；") : "信息不足，建议先确认需求"}${risks.length ? `。注意：${risks.join("；")}` : ""}`;
-  return { matchScore: score, assessment, assessmentNote: "" };
-}
-
-function parseDeadline(text) {
-  const explicit = text.match(/(20\d{2})[./年-](\d{1,2})[./月-](\d{1,2})/);
-  if (explicit) return `${explicit[1]}-${explicit[2].padStart(2, "0")}-${explicit[3].padStart(2, "0")}`;
-  const monthDay = text.match(/(?:截止|交付|初稿|发布|前|于)?\s*(\d{1,2})月(\d{1,2})[日号]?/);
-  if (monthDay) {
-    const current = new Date(`${todayISO()}T12:00:00`);
-    let year = current.getFullYear();
-    const candidate = new Date(year, Number(monthDay[1]) - 1, Number(monthDay[2]), 12);
-    if (candidate.getTime() < current.getTime() - 31 * 86400000) year += 1;
-    return `${year}-${monthDay[1].padStart(2, "0")}-${monthDay[2].padStart(2, "0")}`;
-  }
-  const relative = text.match(/(明天|后天|本周[一二三四五六日天]|下周[一二三四五六日天])/);
-  if (!relative) return "";
-  const now = new Date(`${todayISO()}T12:00:00`);
-  const word = relative[1];
-  if (word === "明天") now.setDate(now.getDate() + 1);
-  else if (word === "后天") now.setDate(now.getDate() + 2);
-  else {
-    const target = { 一: 1, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 日: 7, 天: 7 }[word.at(-1)];
-    const weekday = now.getDay() || 7;
-    now.setDate(now.getDate() + target - weekday + (word.startsWith("下") ? 7 : 0));
-  }
-  return now.toISOString().slice(0, 10);
-}
-
-function scoreStars(score) {
-  const normalized = Math.max(1, Math.min(5, Number(score) || 3));
-  return "★".repeat(normalized) + "☆".repeat(5 - normalized);
-}
-
-function projectCard(project) {
-  const deadline = project.deadline ? `<span class="${isDue(project) ? "deadline-overdue" : ""}">${isDue(project) ? "截止 " : ""}${humanDate(project.deadline)}</span>` : "";
-  return `<article class="project-card"><button type="button" data-project-id="${project.id}">
-    <div class="card-topline"><span class="source-label">${escapeHtml(project.sourceGroup || "手动收集")}</span><span class="status-tag ${project.status}">${statusLabels[project.status] || "待评估"}</span></div>
-    <h3>${escapeHtml(project.title)}</h3>
-    <div class="card-details"><span class="card-score ${project.matchScore <= 2 ? "low" : ""}">${scoreStars(project.matchScore)}</span>${project.budget !== "未提及" ? `<span>${escapeHtml(project.budget)}</span>` : ""}${deadline}${project.contact !== "未提及" ? `<span>${escapeHtml(project.contact)}</span>` : ""}</div>
-  </button></article>`;
-}
-
-function renderList(element, empty, projects) {
-  element.innerHTML = projects.map(projectCard).join("");
-  empty.classList.toggle("is-hidden", projects.length > 0);
-}
-
-function render() {
-  const active = state.projects.filter((project) => ["followup", "saved", "contacted", "progress"].includes(project.status));
-  const todayProjects = sortProjects(active).filter((project) => project.status === "followup" || isDue(project) || project.matchScore >= 4).slice(0, 8);
-  $("#priorityCount").textContent = todayProjects.length;
-  $("#todayCount").textContent = todayProjects.length ? `${todayProjects.length} 个` : "";
-  $("#summaryCopy").textContent = todayProjects.length ? "优先处理截止临近、预算明确或已经决定联系的项目。" : "把群里的项目转发或粘贴到这里，线索只保存在这台设备。";
-  renderList($("#todayList"), $("#todayEmpty"), todayProjects);
-  const filtered = state.projects.filter((project) => {
-    if (state.filter === "all") return true;
-    if (state.filter === "open") return ["followup", "saved", "contacted", "progress"].includes(project.status);
-    return project.status === state.filter;
-  });
-  renderList($("#pipelineList"), $("#pipelineEmpty"), sortProjects(filtered));
-}
-
-function switchView(view) {
-  document.querySelectorAll(".tab").forEach((button) => button.classList.toggle("is-active", button.dataset.view === view));
-  document.querySelectorAll(".view").forEach((element) => element.classList.add("is-hidden"));
-  $(`#${view}View`).classList.remove("is-hidden");
+function saveProjects(next) {
+  if (!state.loaded) { showToast("本机数据读取失败，请先导出备份，避免覆盖"); return false; }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    state.projects = next;
+    render();
+    return true;
+  } catch { showToast("保存失败，存储空间或浏览器权限不足"); return false; }
 }
 
 function showToast(message) {
-  const toast = $("#toast");
-  toast.textContent = message;
-  toast.classList.add("is-visible");
-  window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => toast.classList.remove("is-visible"), 2200);
+  $("#toast").textContent = message;
+  $("#toast").classList.add("is-visible");
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => $("#toast").classList.remove("is-visible"), 3500);
+}
+
+function assessmentHTML(result) {
+  return `<div class="verdict"><div><p class="eyebrow">系统初步建议</p><h3>${e(result.recommendation)}</h3></div><strong class="score-stars">${stars(result.score)}</strong></div>
+    <p class="assessment-basis">按当前接单偏好判断 · 本机规则分析，未经雇主核实</p>
+    <dl class="assessment-details"><dt>为什么</dt><dd>${result.reasons.map(r => `<p>${e(r.text)}<small>依据：${e(r.evidence)}</small></p>`).join("")}</dd>
+    ${result.risks.length ? `<dt>需要注意</dt><dd>${result.risks.map(r => `<p>${e(r)}</p>`).join("")}</dd>` : ""}
+    <dt>下一步</dt><dd>${e(result.action)}</dd><dt>联系前确认</dt><dd><ul>${result.questions.map(q => `<li>${e(q)}</li>`).join("")}</ul></dd></dl>`;
+}
+
+function card(project) {
+  const result = evaluation(project);
+  return `<article class="project-card">
+    <button type="button" data-project-id="${e(project.id)}">
+      <div class="card-topline"><span class="source-label">${e(project.sourceGroup || "手动收集")}</span><span class="status-tag">${e(statusLabels[project.status] || "待判断")}</span></div>
+      <h3>${e(project.title)}</h3>
+      <div class="card-details"><span class="card-score">${stars(result.score)} · ${e(result.recommendation)}</span><span>${e(project.budget)}</span><span>${e(project.deadline)}</span></div>
+      <p class="card-reason">${e(result.risks[0] || result.summary)}</p>
+    </button>
+    <div class="card-actions"><button type="button" data-copy-id="${e(project.id)}" ${A.known(project.contact) ? "" : "disabled"}>复制联系人</button><button type="button" class="delete" data-delete-id="${e(project.id)}">删除项目</button></div>
+  </article>`;
+}
+
+function render() {
+  const active = state.projects.filter(p => !["paused", "done"].includes(p.status));
+  const eligible = active.filter(p => {
+    const r = evaluation(p);
+    return r.suggestedStatus !== "paused" && (!p.deadline || p.deadline >= A.today()) &&
+      (r.score >= 4 || p.status === "followup" || p.status === "progress");
+  }).sort((a, b) => (evaluation(b).score || 0) - (evaluation(a).score || 0)).slice(0, 8);
+  $("#priorityCount").textContent = eligible.length;
+  $("#todayCount").textContent = `${eligible.length} 个`;
+  $("#summaryCopy").textContent = "优先看方向匹配、没有明显时间冲突的机会；建议不代表已确认收入。";
+  $("#todayList").innerHTML = eligible.map(card).join("");
+  $("#todayEmpty").classList.toggle("is-hidden", !!eligible.length);
+  const projects = state.projects.filter(p => state.filter === "all" || (state.filter === "open" ? !["paused", "done"].includes(p.status) : p.status === state.filter));
+  $("#pipelineList").innerHTML = projects.map(card).join("");
+  $("#pipelineEmpty").classList.toggle("is-hidden", !!projects.length);
+  $("#undoBanner").classList.toggle("is-hidden", !state.deleted);
+}
+
+function switchView(view) {
+  document.querySelectorAll(".tab").forEach(button => button.classList.toggle("is-active", button.dataset.view === view));
+  document.querySelectorAll(".view").forEach(el => el.classList.toggle("is-hidden", el.id !== `${view}View`));
 }
 
 function openProject(id) {
-  const project = state.projects.find((item) => item.id === id);
-  if (!project) return;
-  $("#dialogContent").innerHTML = `<div class="dialog-header"><div><p class="eyebrow">${escapeHtml(statusLabels[project.status] || "待评估")}</p><h2>${escapeHtml(project.title)}</h2></div><button class="icon-button" data-close-dialog aria-label="关闭详情">×</button></div>
-    <p class="detail-source">${escapeHtml(project.sourceGroup || "手动收集")} · 收集于 ${humanDate(project.capturedAt)}</p>
-    <div class="detail-grid"><div class="detail-item"><span>预算</span><strong>${escapeHtml(project.budget)}</strong></div><div class="detail-item"><span>截止时间</span><strong>${humanDate(project.deadline)}</strong></div><div class="detail-item"><span>交付物</span><strong>${escapeHtml(project.deliverables)}</strong></div><div class="detail-item"><span>联系人</span><strong>${escapeHtml(project.contact)}</strong></div></div>
-    <section class="assessment-card"><div class="parsed-card-heading"><h3>机会评估</h3><strong class="score-stars ${project.matchScore <= 2 ? "low" : ""}">${scoreStars(project.matchScore)}</strong></div><p class="assessment-copy">${escapeHtml(project.assessment || "待补充评估")}</p>${project.assessmentNote ? `<p class="assessment-copy"><strong>备注：</strong>${escapeHtml(project.assessmentNote)}</p>` : ""}</section>
-    <p class="raw-message">${escapeHtml(project.sourceText)}</p>
-    <div class="action-grid"><button data-action="followup" data-id="${project.id}">待联系</button><button data-action="contacted" data-id="${project.id}">已联系</button><button data-action="progress" data-id="${project.id}">进行中</button><button data-action="paused" data-id="${project.id}">不跟进</button><button class="complete" data-action="done" data-id="${project.id}">标记完成</button><button class="delete" data-action="delete" data-id="${project.id}">删除项目</button></div>`;
-  $("#projectDialog").showModal();
+  const p = state.projects.find(item => item.id === id);
+  if (!p) return;
+  $("#dialogContent").innerHTML = `<div class="dialog-header"><div><p class="eyebrow">${e(statusLabels[p.status])}</p><h2>${e(p.title)}</h2></div><button class="icon-button" data-close-dialog aria-label="关闭详情">×</button></div>
+    <p class="detail-source">${e(p.sourceGroup || "手动收集")} · 收集于 ${e(humanDate(p.capturedAt))}</p>
+    <div class="contact-row"><div><span>联系人</span><strong>${e(p.contact)}</strong></div><button class="outline-button" data-copy-id="${e(p.id)}" ${A.known(p.contact) ? "" : "disabled"}>一键复制</button></div>
+    <button class="danger-button detail-delete" data-delete-id="${e(p.id)}">删除项目</button>
+    <section class="assessment-card">${assessmentHTML(evaluation(p))}</section>
+    <div class="detail-grid">${[["预算", p.budget], ["截止时间", humanDate(p.deadline)], ["交付物", p.deliverables]].map(([label, value]) => `<div class="detail-item"><span>${label}</span><strong>${e(value)}</strong></div>`).join("")}</div>
+    <label class="field"><span>我的备注（不影响系统建议）</span><textarea id="detailNote" rows="3">${e(p.assessmentNote || "")}</textarea></label>
+    <button class="outline-button" data-save-note="${e(p.id)}">保存备注</button>
+    <div class="action-grid">${Object.entries(statusLabels).map(([status, label]) => `<button data-action="${status}" data-id="${e(p.id)}" ${status === p.status ? 'aria-pressed="true"' : ""}>${label}</button>`).join("")}</div>
+    <details><summary>查看消息原文</summary><p class="raw-message">${e(p.sourceText)}</p></details>`;
+  if (!$("#projectDialog").open) $("#projectDialog").showModal();
 }
 
-function setStatus(id, status) {
-  const project = state.projects.find((item) => item.id === id);
-  if (!project) return;
-  if (status === "delete") {
-    state.projects = state.projects.filter((item) => item.id !== id);
-    $("#projectDialog").close();
-    showToast("项目已删除");
-  } else {
-    project.status = status;
-    $("#projectDialog").close();
-    showToast(`已更新为${statusLabels[status]}`);
+async function copyContact(text) {
+  if (!A.known(text)) return showToast("暂无可复制的联系人");
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("联系人已复制");
+  } catch {
+    // Older iOS / denied clipboard permission: try selection-based copy in the active dialog.
+    const field = document.createElement("textarea");
+    field.value = text; field.readOnly = true; field.setAttribute("aria-label", "待复制联系人");
+    field.style.cssText = "position:fixed;top:0;left:0;opacity:.01;width:1px;height:1px";
+    (document.querySelector("dialog[open]") || document.body).append(field);
+    field.focus(); field.select(); field.setSelectionRange(0, text.length);
+    let copied = false;
+    try { copied = document.execCommand("copy"); } catch { /* show fallback below */ }
+    field.remove();
+    if (copied) showToast("联系人已复制");
+    else {
+      $("#manualCopyValue").value = text;
+      $("#copyDialog").showModal();
+      $("#manualCopyValue").focus(); $("#manualCopyValue").select();
+    }
   }
-  persist();
 }
 
-function exportProjects() {
-  const data = new Blob([JSON.stringify(state.projects, null, 2)], { type: "application/json" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(data);
-  link.download = `project-notes-${todayISO()}.json`;
-  link.click();
-  URL.revokeObjectURL(link.href);
+function deleteProject(id) {
+  const index = state.projects.findIndex(p => p.id === id);
+  if (index < 0) return;
+  const project = state.projects[index];
+  if (saveProjects(state.projects.filter(p => p.id !== id))) {
+    state.deleted = { project, index };
+    $("#projectDialog").close();
+    render();
+    showToast("项目已删除，可在顶部撤销");
+  }
+}
+
+function parseDraft() {
+  const text = $("#sourceText").value.trim();
+  if (!text) return showToast("先粘贴一条项目消息");
+  const parsed = A.parse(text, $("#capturedAt").value || A.today());
+  const result = A.assess(text, parsed, state.preferences);
+  $("#projectTitle").value = parsed.title;
+  for (const key of ["budget", "deadline", "deliverables", "contact"]) $(`#${key}`).value = parsed[key];
+  $("#assessmentCopy").innerHTML = assessmentHTML(result);
+  $("#projectStatus").value = result.suggestedStatus;
+  state.draft = text;
+  $("#parsedCard").classList.remove("is-hidden");
+  $("#assessmentCopy").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function initialize() {
-  $("#todayLabel").dateTime = todayISO();
-  $("#todayLabel").textContent = dateFormatter.format(new Date(`${todayISO()}T12:00:00`));
-  $("#capturedAt").value = todayISO();
+  $("#todayLabel").textContent = A.today();
+  $("#capturedAt").value = A.today();
   render();
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => switchView(button.dataset.view)));
-  document.querySelectorAll("[data-go-capture]").forEach((button) => button.addEventListener("click", () => switchView("capture")));
-  document.querySelectorAll(".filter-chip").forEach((button) => button.addEventListener("click", () => {
+  if (!state.loaded) showToast("本机数据无法读取，已停止写入，请先导出备份");
+  document.querySelectorAll(".tab").forEach(button => button.addEventListener("click", () => switchView(button.dataset.view)));
+  document.querySelectorAll("[data-go-capture]").forEach(button => button.addEventListener("click", () => switchView("capture")));
+  document.querySelectorAll(".filter-chip").forEach(button => button.addEventListener("click", () => {
     state.filter = button.dataset.filter;
-    document.querySelectorAll(".filter-chip").forEach((chip) => chip.classList.toggle("is-selected", chip === button));
+    document.querySelectorAll(".filter-chip").forEach(chip => chip.classList.toggle("is-selected", chip === button));
     render();
   }));
-  $("#parseButton").addEventListener("click", () => {
-    const text = $("#sourceText").value.trim();
-    if (!text) return showToast("先粘贴一条项目消息");
-    const parsed = parseMessage(text);
-    $("#projectTitle").value = parsed.title;
-    $("#budget").value = parsed.budget;
-    $("#deadline").value = parsed.deadline;
-    $("#deliverables").value = parsed.deliverables;
-    $("#contact").value = parsed.contact;
-    $("#matchScore").value = String(parsed.matchScore);
-    $("#matchScoreOutput").textContent = scoreStars(parsed.matchScore);
-    $("#assessmentCopy").textContent = parsed.assessment;
-    $("#assessmentNote").value = parsed.assessmentNote;
-    $("#projectStatus").value = parsed.matchScore >= 4 ? "followup" : "saved";
-    $("#parsedCard").classList.remove("is-hidden");
+  $("#parseButton").addEventListener("click", parseDraft);
+  for (const key of ["sourceText", "capturedAt"]) $(`#${key}`).addEventListener("input", () => {
+    state.draft = null; $("#parsedCard").classList.add("is-hidden");
   });
-  $("#matchScore").addEventListener("change", (event) => {
-    $("#matchScoreOutput").textContent = scoreStars(event.target.value);
+  $("#parsedCard").addEventListener("input", () => {
+    const fields = Object.fromEntries(new FormData($("#captureForm")));
+    $("#assessmentCopy").innerHTML = assessmentHTML(A.assess(fields.sourceText, fields, state.preferences));
   });
-  $("#captureForm").addEventListener("submit", (event) => {
+  $("#captureForm").addEventListener("submit", event => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    if (!form.get("sourceText").trim()) return showToast("项目原文不能为空");
-    const project = {
-      id: crypto.randomUUID(), sourceText: form.get("sourceText").trim(), sourceGroup: form.get("sourceGroup").trim(),
-      capturedAt: form.get("capturedAt") || todayISO(), title: form.get("projectTitle").trim() || "未命名项目",
-      budget: form.get("budget").trim() || "未提及", deadline: form.get("deadline"), deliverables: form.get("deliverables").trim() || "未提及",
-      contact: form.get("contact").trim() || "未提及", matchScore: Number(form.get("matchScore")) || 3,
-      assessment: $("#assessmentCopy").textContent.trim() || "待补充评估", assessmentNote: form.get("assessmentNote").trim(),
-      status: form.get("projectStatus"), createdAt: new Date().toISOString()
-    };
-    state.projects.unshift(project);
-    event.currentTarget.reset();
-    $("#capturedAt").value = todayISO();
-    $("#parsedCard").classList.add("is-hidden");
-    persist();
-    switchView("today");
-    showToast("项目已保存");
+    const fields = Object.fromEntries(new FormData(event.currentTarget));
+    if (!state.draft || state.draft !== fields.sourceText.trim()) return showToast("请先解析并评估更新后的原文");
+    const project = { ...fields, title: fields.projectTitle.trim() || "待确认项目", status: fields.projectStatus,
+      sourceText: fields.sourceText.trim(), id: crypto.randomUUID(), createdAt: new Date().toISOString(), analysisVersion: 2 };
+    delete project.projectTitle; delete project.projectStatus;
+    if (!saveProjects([project, ...state.projects])) return;
+    event.currentTarget.reset(); $("#capturedAt").value = A.today(); state.draft = null;
+    $("#parsedCard").classList.add("is-hidden"); switchView("pipeline"); showToast("已保存项目与系统建议");
   });
-  document.addEventListener("click", (event) => {
-    const card = event.target.closest("[data-project-id]");
-    if (card) openProject(card.dataset.projectId);
+  document.addEventListener("click", event => {
+    const cardButton = event.target.closest("[data-project-id]");
+    if (cardButton) openProject(cardButton.dataset.projectId);
+    const copy = event.target.closest("[data-copy-id]");
+    if (copy) copyContact(state.projects.find(p => p.id === copy.dataset.copyId)?.contact);
+    if (event.target.closest("#copyDraftContact")) copyContact($("#contact").value);
+    const deletion = event.target.closest("[data-delete-id]");
+    if (deletion) deleteProject(deletion.dataset.deleteId);
     const action = event.target.closest("[data-action]");
-    if (action) setStatus(action.dataset.id, action.dataset.action);
+    if (action && saveProjects(state.projects.map(p => p.id === action.dataset.id ? { ...p, status: action.dataset.action } : p))) {
+      $("#projectDialog").close(); showToast("跟进状态已更新");
+    }
+    const note = event.target.closest("[data-save-note]");
+    if (note && saveProjects(state.projects.map(p => p.id === note.dataset.saveNote ? { ...p, assessmentNote: $("#detailNote").value } : p))) showToast("备注已保存");
     if (event.target.closest("[data-close-dialog]")) $("#projectDialog").close();
   });
-  $("#settingsButton").addEventListener("click", () => $("#settingsDialog").showModal());
-  $("#exportButton").addEventListener("click", exportProjects);
-  $("#clearButton").addEventListener("click", () => {
-    if (!state.projects.length || !window.confirm("确定清空当前浏览器内的全部项目吗？")) return;
-    state.projects = [];
-    $("#settingsDialog").close();
-    persist();
-    showToast("已清空本机项目");
+  $("#undoButton").addEventListener("click", () => {
+    if (!state.deleted) return;
+    const next = [...state.projects];
+    next.splice(state.deleted.index, 0, state.deleted.project);
+    if (saveProjects(next)) { state.deleted = null; render(); showToast("已恢复项目"); }
   });
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("service-worker.js").catch(() => undefined);
+  $("#settingsButton").addEventListener("click", () => {
+    $("#focusPreference").value = state.preferences.focus;
+    $("#daytimePreference").checked = state.preferences.protectDaytime;
+    $("#aiPreference").checked = state.preferences.avoidAI;
+    $("#busyPreference").value = state.preferences.busyMonth;
+    $("#settingsDialog").showModal();
+  });
+  $("#savePreferences").addEventListener("click", () => {
+    const next = { focus: $("#focusPreference").value, protectDaytime: $("#daytimePreference").checked, avoidAI: $("#aiPreference").checked, busyMonth: $("#busyPreference").value };
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(next)); }
+    catch { return showToast("偏好保存失败"); }
+    state.preferences = next; render(); $("#settingsDialog").close();
+    if (state.draft) {
+      const fields = Object.fromEntries(new FormData($("#captureForm")));
+      $("#assessmentCopy").innerHTML = assessmentHTML(A.assess(fields.sourceText, fields, next));
+    }
+    showToast("偏好已更新，已有项目已重新评估");
+  });
+  $("#exportButton").addEventListener("click", () => {
+    const data = state.loaded ? JSON.stringify(state.projects, null, 2) : localStorage.getItem(STORAGE_KEY);
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([data || "[]"], { type: "application/json" }));
+    link.download = `project-notes-${A.today()}.json`; link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+  $("#clearButton").addEventListener("click", () => {
+    if (!window.confirm("确定清空全部项目吗？此操作不能撤销。")) return;
+    if (saveProjects([])) { state.deleted = null; render(); $("#settingsDialog").close(); }
+  });
+  $("#reloadButton").addEventListener("click", () => {
+    if (state.draft || $("#sourceText").value) {
+      if (!window.confirm("刷新会丢弃尚未保存的录入，已保存项目不受影响。继续吗？")) return;
+    }
+    location.reload();
+  });
+  if ("serviceWorker" in navigator) {
+    const previouslyControlled = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (previouslyControlled) $("#updateBanner").classList.remove("is-hidden");
+    });
+    navigator.serviceWorker.register("service-worker.js", { updateViaCache: "none" }).then(registration => {
+      $("#checkUpdate").addEventListener("click", async () => {
+        try { await registration.update(); showToast("已检查更新，如有新版会在顶部提示"); }
+        catch { showToast("更新检查失败，请检查网络"); }
+      });
+    }).catch(() => showToast("离线缓存未启用，当前可在线使用"));
+  }
 }
-
 initialize();
