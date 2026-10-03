@@ -15,7 +15,7 @@
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <p class="eyebrow">DESIGN PROJECT RADAR</p>
+          <p class="eyebrow">PROJECT NOTES</p>
           <h1>项目速记</h1>
         </div>
         <button class="icon-button" id="settingsButton" type="button" aria-label="打开设置" title="设置">
@@ -71,7 +71,7 @@
         <div class="capture-intro">
           <p class="eyebrow">主动收集</p>
           <h2>粘贴一条项目消息</h2>
-          <p>可直接粘贴群消息、招聘帖或项目 brief。保存前会先给出提取结果。</p>
+          <p>可直接粘贴群消息、招聘帖或项目 brief。保存前会先解析信息并评估可跟进性。</p>
         </div>
         <form id="captureForm">
           <label class="field">
@@ -116,12 +116,35 @@
               <span>联系人</span>
               <input id="contact" name="contact" placeholder="未提及" />
             </label>
+            <section class="assessment-card" aria-labelledby="assessmentTitle">
+              <div class="parsed-card-heading">
+                <h3 id="assessmentTitle">机会评估</h3>
+                <output id="matchScoreOutput" class="score-output"></output>
+              </div>
+              <label class="field">
+                <span>匹配度</span>
+                <select id="matchScore" name="matchScore">
+                  <option value="5">★★★★★ 优先跟进</option>
+                  <option value="4">★★★★ 值得联系</option>
+                  <option value="3">★★★ 备选观察</option>
+                  <option value="2">★★ 低优先级</option>
+                  <option value="1">★ 不建议投入</option>
+                </select>
+              </label>
+              <p class="assessment-copy" id="assessmentCopy"></p>
+              <label class="field">
+                <span>评估备注</span>
+                <textarea id="assessmentNote" name="assessmentNote" rows="3" placeholder="例如：视觉方向匹配；预算待确认；时间排期可协调"></textarea>
+              </label>
+            </section>
             <label class="field">
               <span>你的判断</span>
               <select id="projectStatus" name="projectStatus">
-                <option value="saved">先保存，之后判断</option>
-                <option value="followup">值得联系</option>
-                <option value="paused">暂不跟进</option>
+                <option value="saved">待评估</option>
+                <option value="followup">待联系 / 待投递</option>
+                <option value="contacted">已联系</option>
+                <option value="progress">进行中</option>
+                <option value="paused">不跟进</option>
               </select>
             </label>
             <button class="primary-button" type="submit">保存到项目列表</button>
@@ -147,6 +170,6 @@
     </dialog>
 
     <div class="toast" id="toast" role="status"></div>
-    <script src="app.js?v=2"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>

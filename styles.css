@@ -48,6 +48,7 @@ h3 { margin-bottom: 0; font-size: 15px; }
 .status-tag { padding: 3px 7px; border-radius: 4px; background: #edf0e4; color: var(--lime-deep); font-weight: 700; }
 .status-tag.saved { background: #eef0f4; color: #596573; }.status-tag.paused { background: #f6ebe7; color: #9a513b; }.status-tag.done { background: #e2eff1; color: #35676f; }
 .project-card h3 { overflow: hidden; margin-bottom: 9px; font-size: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.card-score { color: #596b19; font-size: 13px; font-weight: 800; white-space: nowrap; }.card-score.low { color: #a45a37; }
 .card-details { display: flex; flex-wrap: wrap; gap: 6px 14px; color: #555952; font-size: 13px; }
 .card-details span { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
 .deadline-overdue { color: #b9472d; font-weight: 700; }
@@ -64,6 +65,8 @@ input:focus, textarea:focus, select:focus { border-color: var(--blue); box-shado
 .primary-button, .secondary-button, .outline-button, .danger-button { min-height: 44px; padding: 0 15px; border-radius: 6px; font-weight: 750; }
 .primary-button { width: 100%; border: 1px solid #20211e; background: #20211e; color: #fff; }.secondary-button { width: 100%; border: 1px solid var(--line); background: var(--panel); color: var(--ink); }
 .parsed-card { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: #f9faf7; }.parsed-card-heading { margin-bottom: 17px; }.parsed-card-heading span { color: var(--muted); font-size: 12px; }
+.assessment-card { margin: 20px 0; padding: 14px; border: 1px solid #d8e6a4; border-radius: 6px; background: #f5f9e6; }.assessment-card .parsed-card-heading { margin-bottom: 13px; }.score-output { color: #4c5b16; font-size: 14px; font-weight: 800; }.assessment-copy { margin: -2px 0 14px; color: #59622f; font-size: 13px; line-height: 1.55; }
+.score-stars { color: #657719; letter-spacing: .06em; }.score-stars.low { color: #b86d3b; }
 .filter-row { display: flex; gap: 6px; overflow-x: auto; margin: -4px 0 16px; padding: 4px 0; }.filter-chip { flex: 0 0 auto; min-height: 32px; padding: 0 11px; border: 1px solid var(--line); font-size: 13px; }.filter-chip.is-selected { border-color: #aebd62; background: #edf5cc; color: #43510a; }
 dialog { width: min(calc(100% - 32px), 520px); padding: 0; border: 0; border-radius: 9px; box-shadow: 0 20px 60px rgba(0, 0, 0, .2); }dialog::backdrop { background: rgba(20, 22, 16, .36); }
 .project-dialog > div, .settings-dialog form { padding: 21px; }.dialog-header { margin-bottom: 14px; }.dialog-header h2 { margin: 0; }
