@@ -1,0 +1,17 @@
+{
+  "name": "项目速记",
+  "short_name": "项目速记",
+  "description": "手动收集微信群项目，解析并跟进。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#fcfcfa",
+  "theme_color": "#fcfcfa",
+  "icons": [
+    {
+      "src": "icons/radar.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
